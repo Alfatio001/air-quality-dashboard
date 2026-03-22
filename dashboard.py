@@ -26,26 +26,19 @@ st.markdown("""
 # ======================
 @st.cache_data
 def load_data():
-    BASE_DIR = os.path.dirname(__file__)
-    folder_path = os.path.join(BASE_DIR, "PRSA_Data_20130301-20170228")
-
-    # DEBUG (biar yakin kebaca)
-    st.write("PATH:", folder_path)
-    st.write("ISI FOLDER:", os.listdir(BASE_DIR))
+    folder_path = "PRSA_Data_20130301-20170228"
+    files = os.listdir(folder_path)
 
     df_list = []
-
-    for file in os.listdir(folder_path):
+    for file in files:
         if file.endswith(".csv"):
-            file_path = os.path.join(folder_path, file)
-            df_list.append(pd.read_csv(file_path))
+            df_list.append(pd.read_csv(os.path.join(folder_path, file)))
 
     df = pd.concat(df_list, ignore_index=True)
-
-    df['datetime'] = pd.to_datetime(df[['year', 'month', 'day', 'hour']])
-    df = df.sort_values(by='datetime')
-
+    df['datetime'] = pd.to_datetime(df[['year','month','day','hour']])
     return df
+
+df = load_data()
 
 # ======================
 # ⚙️ SIDEBAR
