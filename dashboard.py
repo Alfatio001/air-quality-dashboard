@@ -55,7 +55,7 @@ h2, h3 {
 # ======================
 @st.cache_data
 def load_data():
-    folder_path = "data_air/PRSA_Data_20130301-20170228"
+    folder_path = "PRSA_Data_20130301-20170228"
     files = os.listdir(folder_path)
 
     df_list = []
