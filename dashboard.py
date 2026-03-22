@@ -6,27 +6,10 @@ import plotly.express as px
 st.set_page_config(layout="wide")
 
 # ======================
-# 🎨 ULTRA UI CSS
+# 🎨 STYLE
 # ======================
 st.markdown("""
 <style>
-
-/* BACKGROUND */
-.main {
-    background-color: #0E1117;
-}
-
-/* HEADER */
-h1 {
-    font-size: 36px !important;
-    font-weight: 700;
-    color: white;
-}
-h2, h3 {
-    color: white;
-}
-
-/* CARD STYLE */
 .metric-card {
     background: linear-gradient(135deg, #1C1F26, #2A2E38);
     padding: 20px;
@@ -34,181 +17,136 @@ h2, h3 {
     text-align: center;
     color: white;
     box-shadow: 0px 4px 20px rgba(0,0,0,0.4);
-    transition: 0.3s;
 }
-
-/* HOVER EFFECT */
-.metric-card:hover {
-    transform: translateY(-5px);
-}
-
-/* SUBTEXT */
-.caption {
-    color: #aaa;
-}
-
 </style>
 """, unsafe_allow_html=True)
 
 # ======================
-# LOAD DATA
+# 📥 LOAD DATA
 # ======================
 @st.cache_data
 def load_data():
-    folder_path = "PRSA_Data_20130301-20170228"
+    folder_path = "data_air/PRSA_Data_20130301-20170228"
     files = os.listdir(folder_path)
 
     df_list = []
     for file in files:
         if file.endswith(".csv"):
-            file_path = os.path.join(folder_path, file)
-            df_list.append(pd.read_csv(file_path))
+            df_list.append(pd.read_csv(os.path.join(folder_path, file)))
 
     df = pd.concat(df_list, ignore_index=True)
-
-    df['datetime'] = pd.to_datetime(df[['year', 'month', 'day', 'hour']])
-    df = df.sort_values(by='datetime')
-
+    df['datetime'] = pd.to_datetime(df[['year','month','day','hour']])
     return df
 
 df = load_data()
 
 # ======================
-# SIDEBAR
+# ⚙️ SIDEBAR
 # ======================
 st.sidebar.title("⚙️ Filter")
 
-selected_station = st.sidebar.selectbox(
+selected_station = st.sidebar.multiselect(
     "Stasiun Pemantauan Udara",
-    sorted(df['station'].unique())
+    sorted(df['station'].unique()),
+    default=[df['station'].unique()[0]]
 )
 
-station_df = df[df['station'] == selected_station].copy()
+selected_year = st.sidebar.multiselect(
+    "Tahun",
+    sorted(df['year'].unique()),
+    default=[df['year'].unique()[0]]
+)
+
+mode = st.sidebar.selectbox("Mode Grafik", ["Bulanan", "Harian"])
 
 # ======================
-# HEADER
+# 🔎 FILTER DATA
 # ======================
-st.markdown("🌍 Air Quality Dashboard")
-st.caption("Analisis PM2.5 berbasis waktu dan faktor lingkungan")
+filtered_df = df[
+    (df['station'].isin(selected_station)) &
+    (df['year'].isin(selected_year))
+].copy()
 
 # ======================
-# METRICS (ULTRA CARD)
+# 🧾 HEADER
 # ======================
-avg_pm25 = station_df['PM2.5'].mean()
-max_pm25 = station_df['PM2.5'].max()
+st.title("🌍 Air Quality Dashboard")
+st.caption("Analisis PM2.5 berdasarkan waktu, cuaca, dan lokasi")
 
-if avg_pm25 <= 50:
-    status = "🟢 Baik"
-elif avg_pm25 <= 100:
-    status = "🟡 Sedang"
-else:
-    status = "🔴 Buruk"
+# ======================
+# 📊 KPI
+# ======================
+avg_pm25 = filtered_df['PM2.5'].mean()
+max_pm25 = filtered_df['PM2.5'].max()
+
+status = "🟢 Baik" if avg_pm25 <= 50 else "🟡 Sedang" if avg_pm25 <= 100 else "🔴 Buruk"
 
 col1, col2, col3 = st.columns(3)
 
-col1.markdown(f"""
-<div class="metric-card">
-<h4>Rata-rata PM2.5</h4>
-<h2>{avg_pm25:.2f}</h2>
-<p>{status}</p>
-</div>
-""", unsafe_allow_html=True)
-
-col2.markdown(f"""
-<div class="metric-card">
-<h4>PM2.5 Maksimum</h4>
-<h2>{max_pm25:.2f}</h2>
-</div>
-""", unsafe_allow_html=True)
-
-col3.markdown(f"""
-<div class="metric-card">
-<h4>Total Data</h4>
-<h2>{len(station_df)}</h2>
-</div>
-""", unsafe_allow_html=True)
+col1.markdown(f"<div class='metric-card'><h4>Rata-rata PM2.5</h4><h2>{avg_pm25:.2f}</h2><p>{status}</p></div>", unsafe_allow_html=True)
+col2.markdown(f"<div class='metric-card'><h4>PM2.5 Maksimum</h4><h2>{max_pm25:.2f}</h2></div>", unsafe_allow_html=True)
+col3.markdown(f"<div class='metric-card'><h4>Total Data</h4><h2>{len(filtered_df)}</h2></div>", unsafe_allow_html=True)
 
 # ======================
-# 📈 TREND BULANAN
+# 📈 TREND
 # ======================
-st.markdown("### 📈 Tren PM2.5 (Bulanan)")
+st.subheader("📈 Tren PM2.5")
 
-monthly_pm25 = station_df.groupby('month')['PM2.5'].mean().reset_index()
+if mode == "Bulanan":
+    trend = filtered_df.groupby(['month','station'])['PM2.5'].mean().reset_index()
+    fig = px.line(trend, x='month', y='PM2.5', color='station', markers=True)
+else:
+    trend = filtered_df.resample('D', on='datetime')['PM2.5'].mean().reset_index()
+    fig = px.line(trend, x='datetime', y='PM2.5')
 
-fig1 = px.line(
-    monthly_pm25,
-    x='month',
-    y='PM2.5',
-    markers=True,
-    title="Rata-rata PM2.5 per Bulan"
-)
-
-fig1.update_layout(
-    template="plotly_dark",
-    xaxis_title="Bulan",
-    yaxis_title="PM2.5"
-)
-
-st.plotly_chart(fig1, use_container_width=True)
+st.plotly_chart(fig, use_container_width=True)
 
 # ======================
-# 📊 TREND HARIAN
+# 📊 PERBANDINGAN STATION
 # ======================
-st.markdown("### 📊 Tren Harian")
+st.subheader("📊 Perbandingan Antar Stasiun")
 
-daily_pm25 = station_df.resample('D', on='datetime')['PM2.5'].mean().reset_index()
+compare = filtered_df.groupby('station')['PM2.5'].mean().reset_index()
 
-fig2 = px.line(
-    daily_pm25,
-    x='datetime',
-    y='PM2.5',
-    title="PM2.5 Harian"
-)
-
-fig2.update_layout(template="plotly_dark")
-
+fig2 = px.bar(compare, x='station', y='PM2.5', color='PM2.5')
 st.plotly_chart(fig2, use_container_width=True)
 
 # ======================
-# 🔥 SCATTER + HEATMAP
+# 🌡️ SUHU VS PM2.5
 # ======================
-col1, col2 = st.columns(2)
+st.subheader("🌡️ Hubungan Suhu vs PM2.5")
 
-with col1:
-    st.markdown("### 🌡️ Suhu vs PM2.5")
+fig3 = px.scatter(
+    filtered_df,
+    x='TEMP',
+    y='PM2.5',
+    color='station',
+    opacity=0.4
+)
 
-    fig3 = px.scatter(
-        station_df,
-        x='TEMP',
-        y='PM2.5',
-        opacity=0.3
-    )
-
-    fig3.update_layout(template="plotly_dark")
-
-    st.plotly_chart(fig3, use_container_width=True)
-
-with col2:
-    st.markdown("### 🔥 Korelasi")
-
-    corr = station_df.corr(numeric_only=True)
-
-    fig4 = px.imshow(
-        corr,
-        text_auto=True,
-        color_continuous_scale='RdBu_r'
-    )
-
-    fig4.update_layout(template="plotly_dark")
-
-    st.plotly_chart(fig4, use_container_width=True)
+st.plotly_chart(fig3, use_container_width=True)
 
 # ======================
-# 🌫️ KATEGORI
+# 🔥 HEATMAP
 # ======================
-st.markdown("### 🌫️ Kualitas Udara")
+st.subheader("🔥 Korelasi Antar Variabel")
 
-def kategori_pm25(x):
+corr = filtered_df.corr(numeric_only=True)
+
+fig4 = px.imshow(
+    corr,
+    text_auto=True,
+    color_continuous_scale='RdBu_r'
+)
+
+st.plotly_chart(fig4, use_container_width=True)
+
+# ======================
+# 🧠 KATEGORI (CLUSTERING)
+# ======================
+st.subheader("🌫️ Kategori Kualitas Udara")
+
+def kategori(x):
     if x <= 50:
         return "Baik"
     elif x <= 100:
@@ -216,20 +154,45 @@ def kategori_pm25(x):
     else:
         return "Buruk"
 
-station_df['kategori_udara'] = station_df['PM2.5'].apply(kategori_pm25)
+filtered_df['kategori'] = filtered_df['PM2.5'].apply(kategori)
 
-fig5 = px.histogram(
-    station_df,
-    x='kategori_udara',
-    color='kategori_udara'
-)
-
-fig5.update_layout(template="plotly_dark")
-
+fig5 = px.histogram(filtered_df, x='kategori', color='kategori')
 st.plotly_chart(fig5, use_container_width=True)
+
+# ======================
+# 🏆 RANKING
+# ======================
+st.subheader("🏆 Stasiun Terbaik & Terburuk")
+
+best = compare.sort_values('PM2.5').head(3)
+worst = compare.sort_values('PM2.5', ascending=False).head(3)
+
+col1, col2 = st.columns(2)
+
+with col1:
+    st.write("🔥 Terburuk")
+    st.dataframe(worst)
+
+with col2:
+    st.write("🌿 Terbaik")
+    st.dataframe(best)
+
+# ======================
+# 💡 INSIGHT OTOMATIS
+# ======================
+st.subheader("💡 Insight Otomatis")
+
+insight = f"""
+Rata-rata PM2.5 sebesar {avg_pm25:.2f} ({status}).
+Polusi tertinggi mencapai {max_pm25:.2f}.
+Station paling tercemar: {worst.iloc[0]['station']}.
+Station paling bersih: {best.iloc[0]['station']}.
+"""
+
+st.info(insight)
 
 # ======================
 # FOOTER
 # ======================
 st.markdown("---")
-st.caption("🤓 Alfatio Sultansyah | Dashboard Air Quality")
+st.caption("🚀 Dashboard by Alfatio Sultansyah")
