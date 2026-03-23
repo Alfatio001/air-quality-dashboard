@@ -31,11 +31,8 @@ import streamlit as st
 
 @st.cache_data
 def load_data():
-    # ambil path folder dashboard sekarang
     BASE_DIR = os.path.dirname(__file__)
-    
-    # arahkan ke folder data (di luar dashboard)
-    folder_path = os.path.join(BASE_DIR, "..", "data")
+    folder_path = os.path.join(BASE_DIR, "PRSA_Data_20130301-20170228")
 
     df_list = []
     
