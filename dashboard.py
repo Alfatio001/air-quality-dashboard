@@ -21,21 +21,32 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
+
 # ======================
 # 📥 LOAD DATA
 # ======================
+import os
+import pandas as pd
+import streamlit as st
+
 @st.cache_data
 def load_data():
-    folder_path = "PRSA_Data_20130301-20170228"
-    files = os.listdir(folder_path)
+    # ambil path folder dashboard sekarang
+    BASE_DIR = os.path.dirname(__file__)
+    
+    # arahkan ke folder data (di luar dashboard)
+    folder_path = os.path.join(BASE_DIR, "..", "data")
 
     df_list = []
-    for file in files:
+    
+    for file in os.listdir(folder_path):
         if file.endswith(".csv"):
-            df_list.append(pd.read_csv(os.path.join(folder_path, file)))
+            file_path = os.path.join(folder_path, file)
+            df_list.append(pd.read_csv(file_path))
 
     df = pd.concat(df_list, ignore_index=True)
     df['datetime'] = pd.to_datetime(df[['year','month','day','hour']])
+    
     return df
 
 df = load_data()
@@ -142,21 +153,28 @@ fig4 = px.imshow(
 st.plotly_chart(fig4, use_container_width=True)
 
 # ======================
-# 🧠 KATEGORI (CLUSTERING)
+# 🧠 KATEGORI (CLUSTERING - BINNING)
 # ======================
 st.subheader("🌫️ Kategori Kualitas Udara")
 
-def kategori(x):
-    if x <= 50:
-        return "Baik"
-    elif x <= 100:
-        return "Sedang"
-    else:
-        return "Buruk"
+# Clustering menggunakan binning
+filtered_df['kategori'] = pd.cut(
+    filtered_df['PM2.5'],
+    bins=[0, 50, 100, 200, 500],
+    labels=["Baik", "Sedang", "Tidak Sehat", "Berbahaya"]
+)
 
-filtered_df['kategori'] = filtered_df['PM2.5'].apply(kategori)
+# Visualisasi distribusi
+fig5 = px.histogram(
+    filtered_df,
+    x='kategori',
+    color='kategori',
+    category_orders={
+        "kategori": ["Baik", "Sedang", "Tidak Sehat", "Berbahaya"]
+    },
+    title="Distribusi Kategori Kualitas Udara"
+)
 
-fig5 = px.histogram(filtered_df, x='kategori', color='kategori')
 st.plotly_chart(fig5, use_container_width=True)
 
 # ======================
